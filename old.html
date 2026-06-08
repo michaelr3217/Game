@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<title>GALAXIA</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    background: #000;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+    width: 100%; height: 100%;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  canvas { display: block; position: absolute; top: 0; left: 0; }
+
+  #ui {
+    position: absolute; top: 0; left: 0; width: 100%;
+    pointer-events: none;
+    padding-top: env(safe-area-inset-top);
+  }
+  #score-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 16px; color: #fff; font-size: 12px;
+    font-weight: bold; letter-spacing: 2px;
+  }
+  #score-bar span { color: #0ff; }
+  #lives { display: flex; gap: 4px; align-items: center; font-size: 11px; }
+
+  /* Overlay */
+  #overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #fff; text-align: center;
+    padding: 20px;
+    padding-top: calc(20px + env(safe-area-inset-top));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+  #overlay h1 {
+    font-size: clamp(32px, 10vw, 56px);
+    color: #0ff; letter-spacing: 8px;
+    text-shadow: 0 0 20px #0ff, 0 0 40px #0ff;
+    margin-bottom: 6px;
+  }
+  .subtitle { font-size: clamp(10px, 3vw, 13px); color: #ff0; letter-spacing: 4px; margin-bottom: 28px; }
+  .instructions { font-size: clamp(11px, 3vw, 13px); color: #aaa; line-height: 2; margin-bottom: 20px; }
+  .instructions .key { color: #0ff; background: rgba(0,255,255,0.1); border: 1px solid #0ff; padding: 1px 6px; border-radius: 3px; font-size: 11px; }
+  .blink { animation: blink 1s infinite; color: #0f0; font-size: 14px; letter-spacing: 3px; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  #start-btn {
+    background: transparent; border: 2px solid #0ff; color: #0ff;
+    padding: 14px 40px; font-family: 'Courier New', monospace;
+    font-size: clamp(13px, 4vw, 16px); letter-spacing: 3px;
+    cursor: pointer; pointer-events: all; margin-top: 10px;
+    -webkit-appearance: none; border-radius: 0;
+    min-width: 180px; min-height: 50px;
+    transition: background 0.15s, color 0.15s;
+  }
+  #start-btn:active { background: #0ff; color: #000; }
+
+  /* Mobile Controls */
+  #controls {
+    position: absolute;
+    bottom: 0; left: 0; width: 100%;
+    height: 120px;
+    display: none;
+    pointer-events: none;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  #controls.visible { display: flex; align-items: flex-end; justify-content: space-between; }
+
+  .ctrl-btn {
+    pointer-events: all;
+    width: 90px; height: 90px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    border: 2px solid rgba(0,255,255,0.4);
+    background: rgba(0,255,255,0.07);
+    color: rgba(0,255,255,0.7);
+    margin: 0 18px 12px;
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s;
+    -webkit-appearance: none;
+    -webkit-touch-callout: none;
+  }
+  .ctrl-btn:active, .ctrl-btn.pressed {
+    background: rgba(0,255,255,0.25);
+    border-color: rgba(0,255,255,0.9);
+    color: #0ff;
+  }
+  #fire-btn {
+    width: 100px; height: 100px;
+    border-color: rgba(255,100,0,0.5);
+    background: rgba(255,80,0,0.08);
+    color: rgba(255,140,0,0.8);
+    font-size: 32px;
+  }
+  #fire-btn.pressed {
+    background: rgba(255,80,0,0.3);
+    border-color: rgba(255,140,0,0.9);
+    color: #fa0;
+  }
+  #joystick-zone {
+    position: absolute;
+    left: 0; bottom: 0;
+    width: 50%; height: 140px;
+    pointer-events: all;
+    display: flex; align-items: flex-end;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 8px);
+  }
+  #fire-zone {
+    position: absolute;
+    right: 0; bottom: 0;
+    width: 50%; height: 140px;
+    pointer-events: all;
+    display: flex; align-items: flex-end; justify-content: flex-end;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 8px);
+  }
+
+  /* Joystick visual */
+  #joystick-outer {
+    width: 100px; height: 100px; border-radius: 50%;
+    border: 2px solid rgba(0,255,255,0.25);
+    background: rgba(0,255,255,0.04);
+    position: relative; margin: 0 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #joystick-inner {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, rgba(0,255,255,0.5), rgba(0,200,255,0.2));
+    border: 1px solid rgba(0,255,255,0.6);
+    position: absolute;
+    transition: transform 0.05s;
+    box-shadow: 0 0 10px rgba(0,255,255,0.3);
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="ui">
+  <div id="score-bar">
+    <div>SCORE <span id="score">0</span></div>
+    <div id="lives"></div>
+    <div>HI <span id="hi">10000</span></div>
+  </div>
+</div>
+
+<div id="overlay">
+  <h1>GALAXIA</h1>
+  <div class="subtitle">★ SPACE INVADERS REIMAGINED ★</div>
+  <div class="instructions" id="instructions-text">
+    <!-- filled by JS based on device -->
+  </div>
+  <button id="start-btn" onclick="startGame()">INSERT COIN</button>
+</div>
+
+<!-- Mobile touch controls -->
+<div id="controls">
+  <div id="joystick-zone">
+    <div id="joystick-outer">
+      <div id="joystick-inner"></div>
+    </div>
+  </div>
+  <div id="fire-zone">
+    <div id="fire-btn" class="ctrl-btn">🔥</div>
+  </div>
+</div>
+
+<script>
+// ─── Device detection ───────────────────────────────────────────────────
+const isMobile = /Android|iPhone|iPad|iPod|Touch/i.test(navigator.userAgent) || ('ontouchstart' in window);
+const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+// Show appropriate instructions
+document.getElementById('instructions-text').innerHTML = isMobile
+  ? `Drag left stick to MOVE<br>Tap right button to FIRE<br>Shoot all enemies to advance<br>Catch falling bonus ships!`
+  : `<span class="key">←</span> <span class="key">→</span> MOVE &nbsp; <span class="key">SPACE</span> FIRE<br>Shoot all enemies to advance<br>Catch falling bonus ships!`;
+
+// ─── Canvas Setup ────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const controlsEl = document.getElementById('controls');
+const joystickInner = document.getElementById('joystick-inner');
+let W, H, SCALE = 1;
+
+// We render to a logical 480×854 canvas and scale up
+const LOGICAL_W = 480;
+const LOGICAL_H = 854;
+
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  // Scale to fill screen, letterbox if needed
+  SCALE = Math.min(W / LOGICAL_W, H / LOGICAL_H);
+  canvas.width = Math.round(LOGICAL_W * SCALE);
+  canvas.height = Math.round(LOGICAL_H * SCALE);
+  ctx.scale(SCALE, SCALE);
+  // Fix enemy formation if game running
+  if (gameRunning && enemies.length) {
+    // no-op; formation coordinates are in logical space
+  }
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ─── Game State ──────────────────────────────────────────────────────────
+let score=0, hi=10000, lives=3, level=1, gameRunning=false;
+let player, bullets=[], enemies=[], enemyBullets=[], stars=[], particles=[], bonusShip=null;
+let keys={}, lastShot=0, lastEnemyShot=0, enemyDir=1, enemyMoveTimer=0;
+let bonusTimer=0, waveCleared=false, waveTimer=0;
+let frameCount=0;
+
+// ─── Touch / Joystick State ──────────────────────────────────────────────
+let joystickActive = false;
+let joystickStartX = 0, joystickCurrentX = 0;
+let joystickTouchId = null;
+let fireTouchId = null;
+const JOYSTICK_DEAD = 12; // px in logical space
+const JOYSTICK_MAX = 42;
+
+function startGame() {
+  overlay.style.display='none';
+  if (isMobile) controlsEl.classList.add('visible');
+  score=0; lives=3; level=1;
+  gameRunning=true;
+  player = { x: LOGICAL_W/2, y: LOGICAL_H - 80, w: 28, h: 20, speed: 5 };
+  initStars();
+  initEnemies();
+  updateUI();
+  loop();
+  // Unlock audio on iOS
+  if (isIOS) { try { if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); audioCtx.resume(); } catch(e){} }
+}
+
+function initStars() {
+  stars=[];
+  for(let i=0;i<120;i++) stars.push({
+    x:Math.random()*LOGICAL_W, y:Math.random()*LOGICAL_H,
+    speed:0.3+Math.random()*1.2, size:Math.random()*1.5+0.3
+  });
+}
+
+function initEnemies() {
+  enemies=[];
+  enemyDir=1; enemyMoveTimer=0;
+  const cols=9, rows=4;
+  const types=['bee','butterfly','galaxian','boss'];
+  for(let r=0;r<rows;r++) {
+    for(let c=0;c<cols;c++) {
+      enemies.push({
+        x: 40 + c*44, y: 70 + r*44,
+        baseX: 40 + c*44, baseY: 70 + r*44,
+        w:22, h:18, alive:true,
+        type: types[Math.min(r, types.length-1)],
+        pts: [10,20,30,50][Math.min(r, 3)],
+        diveState: 'formation', diveTarget: null,
+        frame: 0, frameTimer: 0,
+        color: ['#0ff','#ff0','#f0f','#f44'][Math.min(r, 3)]
+      });
+    }
+  }
+}
+
+function loop() {
+  if(!gameRunning) return;
+  requestAnimationFrame(loop);
+  frameCount++;
+  ctx.fillStyle='#000';
+  ctx.fillRect(0,0,LOGICAL_W,LOGICAL_H);
+  updateStars(); drawStars();
+  updatePlayer(); drawPlayer();
+  updateBullets(); drawBullets();
+  updateEnemies(); drawEnemies();
+  updateEnemyBullets(); drawEnemyBullets();
+  updateParticles(); drawParticles();
+  updateBonus(); drawBonus();
+  checkCollisions();
+  if(waveCleared) { waveTimer++; if(waveTimer>90){level++;initEnemies();waveCleared=false;waveTimer=0;} }
+}
+
+// ─── Stars ───────────────────────────────────────────────────────────────
+function updateStars() {
+  for(let s of stars) { s.x -= s.speed; if(s.x<0) s.x=LOGICAL_W+2; }
+}
+function drawStars() {
+  for(let s of stars) {
+    ctx.fillStyle=`rgba(255,255,255,${0.3+s.size*0.4})`;
+    ctx.fillRect(s.x,s.y,s.size,s.size);
+  }
+}
+
+// ─── Player ───────────────────────────────────────────────────────────────
+function updatePlayer() {
+  if(!player) return;
+
+  // Keyboard
+  let moveLeft  = keys['ArrowLeft']  || keys['a'];
+  let moveRight = keys['ArrowRight'] || keys['d'];
+  let shooting  = keys[' '] || keys['z'];
+
+  // Joystick override
+  if (joystickActive) {
+    const dx = (joystickCurrentX - joystickStartX) / SCALE;
+    if (dx < -JOYSTICK_DEAD) moveLeft = true;
+    if (dx >  JOYSTICK_DEAD) moveRight = true;
+  }
+
+  if (moveLeft)  player.x = Math.max(20, player.x - player.speed);
+  if (moveRight) player.x = Math.min(LOGICAL_W-20, player.x + player.speed);
+
+  if ((shooting || touchFireDown) && Date.now()-lastShot > 220) {
+    bullets.push({x:player.x, y:player.y-12, speed:9, w:3, h:14, alive:true});
+    lastShot=Date.now();
+    playSound('shoot');
+  }
+}
+
+function drawPlayer() {
+  if(!player) return;
+  const x=player.x, y=player.y;
+  ctx.save();
+  ctx.shadowColor='#0ff'; ctx.shadowBlur=8;
+  ctx.fillStyle='#0ff';
+  ctx.beginPath(); ctx.moveTo(x,y-14); ctx.lineTo(x-13,y+8);
+  ctx.lineTo(x-5,y+4); ctx.lineTo(x,y+8);
+  ctx.lineTo(x+5,y+4); ctx.lineTo(x+13,y+8); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.fillRect(x-2,y-4,4,6);
+  ctx.restore();
+}
+
+// ─── Bullets ──────────────────────────────────────────────────────────────
+function updateBullets() {
+  bullets = bullets.filter(b=>b.y>-20 && b.alive!==false);
+  for(let b of bullets) b.y -= b.speed;
+}
+function drawBullets() {
+  for(let b of bullets) {
+    ctx.save(); ctx.shadowColor='#0ff'; ctx.shadowBlur=6;
+    ctx.fillStyle='#0ff'; ctx.fillRect(b.x-b.w/2, b.y, b.w, b.h);
+    ctx.restore();
+  }
+}
+
+// ─── Enemies ──────────────────────────────────────────────────────────────
+function updateEnemies() {
+  const moveInterval = Math.max(12, 30 - level*2 - (36-enemies.filter(e=>e.alive).length)*0.3);
+  enemyMoveTimer++;
+  let moved = false;
+  if(enemyMoveTimer >= moveInterval) { enemyMoveTimer=0; moved=true; }
+
+  const alive = enemies.filter(e=>e.alive);
+  if(alive.length===0 && !waveCleared) { waveCleared=true; waveTimer=0; return; }
+
+  let minX=Infinity, maxX=-Infinity;
+  for(let e of alive) { minX=Math.min(minX,e.baseX); maxX=Math.max(maxX,e.baseX); }
+  if(moved) {
+    if(maxX + enemyDir*18 > LOGICAL_W-30 || minX + enemyDir*18 < 30) {
+      enemyDir *= -1;
+      for(let e of alive) if(e.diveState==='formation') e.baseY += 10;
+    } else {
+      for(let e of alive) if(e.diveState==='formation') e.baseX += enemyDir*18;
+    }
+  }
+
+  for(let e of enemies) {
+    if(!e.alive) continue;
+    e.frameTimer++; if(e.frameTimer>15){e.frame=1-e.frame;e.frameTimer=0;}
+
+    if(e.diveState==='formation') {
+      e.x += (e.baseX - e.x)*0.15;
+      e.y += (e.baseY - e.y)*0.15;
+      if(alive.length>4 && Math.random()<0.0003*level) startDive(e);
+    } else if(e.diveState==='diving') {
+      if(!e.diveTarget) e.diveTarget={x:player?player.x:LOGICAL_W/2, y:LOGICAL_H+50};
+      const dx=e.diveTarget.x-e.x, dy=e.diveTarget.y-e.y;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      const spd=2+level*0.5;
+      e.x+=dx/dist*spd; e.y+=dy/dist*spd;
+      if(e.y>LOGICAL_H+40) { e.diveState='formation'; e.x=e.baseX; e.y=e.baseY; }
+    }
+
+    if(Date.now()-lastEnemyShot>1200-level*80 && Math.random()<0.004) {
+      if(alive.indexOf(e)===alive.length-1 || Math.random()<0.3) {
+        enemyBullets.push({x:e.x,y:e.y+12,speed:3+level*0.4,w:3,h:10,color:e.color});
+        lastEnemyShot=Date.now();
+      }
+    }
+  }
+}
+
+function startDive(e) {
+  e.diveState='diving';
+  e.diveTarget={x:player?player.x+((Math.random()-0.5)*100):LOGICAL_W/2, y:LOGICAL_H+50};
+}
+
+function drawEnemies() {
+  for(let e of enemies) {
+    if(!e.alive) continue;
+    ctx.save();
+    ctx.shadowColor=e.color; ctx.shadowBlur=6;
+    ctx.fillStyle=e.color;
+    drawEnemy(ctx,e);
+    ctx.restore();
+  }
+}
+
+function drawEnemy(ctx, e) {
+  const x=e.x, y=e.y, f=e.frame;
+  ctx.save();
+  if(e.type==='bee') {
+    ctx.fillStyle=e.color;
+    ctx.fillRect(x-6,y-8,12,16);
+    ctx.fillStyle='#fff';
+    ctx.fillRect(x-10,y+(f?-2:0),5,8);
+    ctx.fillRect(x+5,y+(f?-2:0),5,8);
+    ctx.fillStyle='#000';
+    ctx.fillRect(x-3,y-5,3,3); ctx.fillRect(x+1,y-5,3,3);
+  } else if(e.type==='butterfly') {
+    ctx.fillStyle=e.color;
+    ctx.beginPath(); ctx.ellipse(x,y,8,10,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.6)';
+    ctx.beginPath(); ctx.ellipse(x-(f?12:10),y-2,f?7:9,6,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x+(f?12:10),y-2,f?7:9,6,0,0,Math.PI*2); ctx.fill();
+  } else if(e.type==='galaxian') {
+    ctx.fillStyle=e.color;
+    ctx.beginPath(); ctx.moveTo(x,y-10); ctx.lineTo(x-10,y+10); ctx.lineTo(x+10,y+10); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.5)';
+    ctx.beginPath(); ctx.moveTo(x,y-4); ctx.lineTo(x-5,y+6); ctx.lineTo(x+5,y+6); ctx.closePath(); ctx.fill();
+    ctx.fillRect(x-(f?14:12),y,f?5:8,4); ctx.fillRect(x+(f?9:4),y,f?5:8,4);
+  } else {
+    ctx.fillStyle=e.color;
+    ctx.beginPath(); ctx.arc(x,y,10,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.arc(x-3,y-3,3,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x+3,y-3,3,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.7)';
+    ctx.fillRect(x-8,y+(f?3:5),4,3); ctx.fillRect(x+4,y+(f?3:5),4,3);
+  }
+  ctx.restore();
+}
+
+// ─── Enemy Bullets ────────────────────────────────────────────────────────
+function updateEnemyBullets() {
+  enemyBullets = enemyBullets.filter(b=>b.y<LOGICAL_H+10);
+  for(let b of enemyBullets) b.y += b.speed;
+}
+function drawEnemyBullets() {
+  for(let b of enemyBullets) {
+    ctx.save(); ctx.shadowColor=b.color; ctx.shadowBlur=5;
+    ctx.fillStyle=b.color; ctx.fillRect(b.x-b.w/2,b.y,b.w,b.h);
+    ctx.restore();
+  }
+}
+
+// ─── Bonus Ship ───────────────────────────────────────────────────────────
+function updateBonus() {
+  bonusTimer++;
+  if(!bonusShip && bonusTimer>400 && Math.random()<0.003) {
+    bonusShip={x:-30, y:40, speed:2+level*0.3, pts:Math.random()<0.5?300:500};
+    bonusTimer=0;
+  }
+  if(bonusShip) {
+    bonusShip.x += bonusShip.speed;
+    if(bonusShip.x > LOGICAL_W+40) bonusShip=null;
+  }
+}
+function drawBonus() {
+  if(!bonusShip) return;
+  ctx.save(); ctx.shadowColor='#f0f'; ctx.shadowBlur=10;
+  ctx.fillStyle='#f0f';
+  ctx.beginPath(); ctx.ellipse(bonusShip.x,bonusShip.y,18,8,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.7)';
+  ctx.beginPath(); ctx.ellipse(bonusShip.x,bonusShip.y-4,8,4,0,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+// ─── Collisions ───────────────────────────────────────────────────────────
+function checkCollisions() {
+  for(let b of bullets) {
+    if(b.alive===false) continue;
+    for(let e of enemies) {
+      if(!e.alive) continue;
+      if(Math.abs(b.x-e.x)<14 && Math.abs(b.y-e.y)<14) {
+        e.alive=false; b.alive=false;
+        score+=e.pts*(e.diveState==='diving'?2:1);
+        spawnParticles(e.x,e.y,e.color,8);
+        playSound('explode');
+        document.getElementById('score').textContent=score;
+        if(score>hi){hi=score;document.getElementById('hi').textContent=hi;}
+      }
+    }
+    if(bonusShip && b.x>bonusShip.x-18 && b.x<bonusShip.x+18 && b.y>bonusShip.y-10 && b.y<bonusShip.y+10) {
+      score+=bonusShip.pts; b.alive=false;
+      spawnParticles(bonusShip.x,bonusShip.y,'#f0f',12);
+      showBonus(bonusShip.x,bonusShip.y,bonusShip.pts);
+      bonusShip=null; playSound('bonus');
+      document.getElementById('score').textContent=score;
+    }
+  }
+  bullets = bullets.filter(b=>b.alive!==false);
+
+  if(player) {
+    for(let b of enemyBullets) {
+      if(Math.abs(b.x-player.x)<12 && Math.abs(b.y-player.y)<14) {
+        b.y=99999; playerHit();
+      }
+    }
+    for(let e of enemies) {
+      if(!e.alive) continue;
+      if(Math.abs(e.x-player.x)<18 && Math.abs(e.y-player.y)<18) {
+        e.alive=false; playerHit();
+      }
+    }
+  }
+}
+
+let bonusTexts=[];
+function showBonus(x,y,pts) { bonusTexts.push({x,y,pts,timer:60}); }
+
+function playerHit() {
+  if(!player) return;
+  spawnParticles(player.x,player.y,'#0ff',15);
+  playSound('die');
+  lives--;
+  updateUI();
+  player=null;
+  if(lives<=0) { setTimeout(gameOver,800); }
+  else { setTimeout(()=>{ player={x:LOGICAL_W/2,y:LOGICAL_H-80,w:28,h:20,speed:5}; },1200); }
+}
+
+function updateUI() {
+  const lv = document.getElementById('lives');
+  lv.innerHTML='LIVES ';
+  for(let i=0;i<lives;i++) lv.innerHTML+='▲ ';
+}
+
+function spawnParticles(x,y,color,n) {
+  for(let i=0;i<n;i++) {
+    const a=Math.random()*Math.PI*2, s=1+Math.random()*3;
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:40+Math.random()*20,maxLife:60,color,size:2+Math.random()*2});
+  }
+}
+function updateParticles() {
+  particles=particles.filter(p=>p.life>0);
+  for(let p of particles){p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.life--;}
+  bonusTexts=bonusTexts.filter(b=>b.timer>0);
+  for(let b of bonusTexts){b.y-=0.8;b.timer--;}
+}
+function drawParticles() {
+  for(let p of particles) {
+    ctx.save();
+    ctx.globalAlpha=p.life/p.maxLife;
+    ctx.fillStyle=p.color;
+    ctx.fillRect(p.x,p.y,p.size,p.size);
+    ctx.restore();
+  }
+  for(let b of bonusTexts) {
+    ctx.save();
+    ctx.globalAlpha=b.timer/60;
+    ctx.fillStyle='#ff0';
+    ctx.font='bold 16px Courier New';
+    ctx.textAlign='center';
+    ctx.fillText('+'+b.pts, b.x, b.y);
+    ctx.restore();
+  }
+}
+
+function gameOver() {
+  gameRunning=false;
+  controlsEl.classList.remove('visible');
+  overlay.style.display='flex';
+  overlay.innerHTML=`
+    <h1>GAME OVER</h1>
+    <div class="subtitle">SCORE: ${score}</div>
+    <div class="instructions">Level reached: ${level}<br>Hi-Score: ${Math.max(score,hi)}</div>
+    <button id="start-btn" onclick="startGame()" style="background:transparent;border:2px solid #0ff;color:#0ff;padding:14px 40px;font-family:'Courier New',monospace;font-size:16px;letter-spacing:3px;cursor:pointer;margin-top:20px;border-radius:0;min-width:180px;min-height:50px;">PLAY AGAIN</button>
+  `;
+}
+
+// ─── Audio ────────────────────────────────────────────────────────────────
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+function playSound(type) {
+  try {
+    if(!audioCtx) audioCtx = new AudioCtx();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    if(type==='shoot'){o.frequency.setValueAtTime(880,audioCtx.currentTime);o.frequency.exponentialRampToValueAtTime(440,audioCtx.currentTime+0.08);g.gain.setValueAtTime(0.15,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.1);}
+    else if(type==='explode'){o.type='sawtooth';o.frequency.setValueAtTime(200,audioCtx.currentTime);o.frequency.exponentialRampToValueAtTime(40,audioCtx.currentTime+0.25);g.gain.setValueAtTime(0.2,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.3);}
+    else if(type==='die'){o.type='sawtooth';o.frequency.setValueAtTime(300,audioCtx.currentTime);o.frequency.exponentialRampToValueAtTime(40,audioCtx.currentTime+0.5);g.gain.setValueAtTime(0.3,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.6);}
+    else if(type==='bonus'){o.type='triangle';o.frequency.setValueAtTime(660,audioCtx.currentTime);o.frequency.exponentialRampToValueAtTime(1320,audioCtx.currentTime+0.15);g.gain.setValueAtTime(0.2,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.2);}
+    o.start(); o.stop(audioCtx.currentTime+0.6);
+  } catch(e){}
+}
+
+// ─── Keyboard Controls ────────────────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  keys[e.key]=true;
+  if(e.key===' ') e.preventDefault();
+});
+document.addEventListener('keyup',e=>{ keys[e.key]=false; });
+
+// ─── Touch Controls ───────────────────────────────────────────────────────
+// Joystick (left half of screen)
+let touchFireDown = false;
+
+const joystickZone = document.getElementById('joystick-zone');
+const fireZone = document.getElementById('fire-zone');
+const fireBtn = document.getElementById('fire-btn');
+const joystickOuter = document.getElementById('joystick-outer');
+
+// Convert page coords to logical game coords
+function toLogicalX(pageX) { return (pageX / SCALE); }
+
+function updateJoystickVisual() {
+  if (!joystickActive) {
+    joystickInner.style.transform = 'translate(0,0)';
+    return;
+  }
+  const dx = joystickCurrentX - joystickStartX;
+  const clampedDx = Math.max(-JOYSTICK_MAX * SCALE, Math.min(JOYSTICK_MAX * SCALE, dx));
+  joystickInner.style.transform = `translateX(${clampedDx}px)`;
+}
+
+document.addEventListener('touchstart', e=>{
+  if(!gameRunning) return;
+  if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
+
+  for(let t of e.changedTouches) {
+    const logX = t.clientX / W * LOGICAL_W;
+    if(logX < LOGICAL_W * 0.55) {
+      // Left side = joystick
+      if(joystickTouchId === null) {
+        joystickTouchId = t.identifier;
+        joystickStartX = t.clientX;
+        joystickCurrentX = t.clientX;
+        joystickActive = true;
+        updateJoystickVisual();
+      }
+    } else {
+      // Right side = fire
+      if(fireTouchId === null) {
+        fireTouchId = t.identifier;
+        touchFireDown = true;
+        fireBtn.classList.add('pressed');
+      }
+    }
+  }
+}, {passive: true});
+
+document.addEventListener('touchmove', e=>{
+  if(!gameRunning) return;
+  for(let t of e.changedTouches) {
+    if(t.identifier === joystickTouchId) {
+      joystickCurrentX = t.clientX;
+      updateJoystickVisual();
+    }
+  }
+}, {passive: true});
+
+document.addEventListener('touchend', e=>{
+  for(let t of e.changedTouches) {
+    if(t.identifier === joystickTouchId) {
+      joystickTouchId = null;
+      joystickActive = false;
+      joystickStartX = 0;
+      joystickCurrentX = 0;
+      updateJoystickVisual();
+    }
+    if(t.identifier === fireTouchId) {
+      fireTouchId = null;
+      touchFireDown = false;
+      fireBtn.classList.remove('pressed');
+    }
+  }
+}, {passive: true});
+
+document.addEventListener('touchcancel', e=>{
+  joystickTouchId = null; joystickActive = false;
+  joystickStartX = 0; joystickCurrentX = 0;
+  joystickInner.style.transform = 'translate(0,0)';
+  fireTouchId = null; touchFireDown = false;
+  fireBtn.classList.remove('pressed');
+}, {passive: true});
+
+// Prevent context menu and selection on long-press
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// Prevent scroll/bounce on iOS
+document.addEventListener('touchmove', e => { if(gameRunning) e.preventDefault(); }, {passive: false});
+</script>
+</body>
+</html>
