@@ -9,7 +9,11 @@
       "Bash(gh repo *)",
       "PowerShell(gh auth login)",
       "Bash(git push *)",
-      "Bash(git clone *)"
+      "Bash(git clone *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "PowerShell(Start-Process \"http://localhost:3000\")",
+      "PowerShell(Start-Process powershell -ArgumentList \"-NoExit\", \"-Command\", \"cd 'C:\\\\Users\\\\microsen\\\\.claude\\\\projects\\\\new game\\\\inventory-management\\\\server'; python main.py\")"
     ]
   }
 }
