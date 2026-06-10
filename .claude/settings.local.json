@@ -7,7 +7,9 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(gh repo *)",
-      "PowerShell(gh auth login)"
+      "PowerShell(gh auth login)",
+      "Bash(git push *)",
+      "Bash(git clone *)"
     ]
   }
 }
